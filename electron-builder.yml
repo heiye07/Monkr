@@ -1,0 +1,17 @@
+appId: com.monkr.portable
+productName: Monkr
+asar: true
+electronDist: node_modules/electron/dist
+files:
+  - build/**/*
+  - desktop/**/*
+  - package.json
+directories:
+  output: release
+win:
+  target:
+    - target: portable
+      arch: [x64]
+  signAndEditExecutable: false
+portable:
+  artifactName: Monkr-Portable-${version}-${arch}.${ext}

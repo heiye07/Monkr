@@ -82,6 +82,14 @@ license notes.
 - **Custom uploads** - drag & drop any image
 - **Unsplash integration** - search millions of free photos
 
+### Windows portable app
+
+Run `npm run build:portable` on Windows to create a standalone executable in `release/`.
+The executable includes the app and device assets; no local web server or installation is needed.
+Project settings are kept in a `MonkrPortableData` folder beside the executable. Move that
+folder with the executable to carry your settings to another computer. Online features such
+as Unsplash images and downloaded fonts still require an internet connection.
+
 ### Scene Presets
 
 One-click layouts that look professional instantly:
