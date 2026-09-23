@@ -1219,14 +1219,22 @@
 			<div class="section-body space-y-3">
 				<div class="space-y-1">
 					<span class="text-[10px] font-medium text-zinc-500">Scale</span>
-					<div class="grid grid-cols-3 gap-0.5 rounded-lg bg-zinc-800/80 p-0.5">
-						{#each [1, 2, 3] as scale}
+					<div class="grid grid-cols-4 gap-0.5 rounded-lg bg-zinc-800/80 p-0.5">
+						{#each [1, 2, 3, 4] as scale}
 							<button class="rounded-md py-1 text-[10px] font-medium transition-colors
 								{store.exportConfig.scale === scale ? 'bg-zinc-700 text-white' : 'text-zinc-500'}"
 								onclick={() => store.setExportScale(scale as ExportScale)}>{scale}x</button>
 						{/each}
 					</div>
+					<span class="block text-[10px] text-zinc-500">4x renders more pixels; PNG remains lossless.</span>
 				</div>
+				<label class="flex items-start gap-2 text-[10px] text-zinc-400">
+					<input type="checkbox" class="mt-0.5 accent-pink-600" checked={store.exportConfig.preserveOriginal}
+						onchange={(e) => store.setPreserveOriginal(e.currentTarget.checked)} />
+					<span>Preserve original uploads between sessions
+						<span class="block text-zinc-500">Re-upload images previously saved at reduced quality.</span>
+					</span>
+				</label>
 				<div class="space-y-1">
 					<span class="text-[10px] font-medium text-zinc-500">Format</span>
 					<div class="grid grid-cols-2 gap-0.5 rounded-lg bg-zinc-800/80 p-0.5">

@@ -17,6 +17,7 @@ import type { LayoutTemplate } from '../templates';
 import type { ScenePreset } from '../scenes';
 import type { MockupScene } from '../mockups';
 import { mockupScenes } from '../mockups';
+import { loadOriginalImage, saveOriginalImage } from '../media-cache';
 
 let _nextId = 1;
 function genId(): string {
@@ -112,7 +113,8 @@ function createDefaultState(): MonkrState {
 		selectedObjectId: firstObj.id,
 		exportConfig: {
 			scale: 2,
-			format: 'png'
+			format: 'png',
+			preserveOriginal: true
 		},
 		canvasSize: {
 			width: 1920,
@@ -165,6 +167,21 @@ function createDefaultState(): MonkrState {
 }
 
 const AUTOSAVE_KEY = 'monkr_autosave';
+const savedMediaUrls = new Map<string, string>();
+
+async function saveOriginalOrCompress(key: string, url: string | null, file?: File | null): Promise<string | null> {
+	if (!url) return null;
+	try {
+		if (savedMediaUrls.get(key) !== url) {
+			await saveOriginalImage(key, file ?? await fetch(url).then((response) => response.blob()));
+			savedMediaUrls.set(key, url);
+		}
+		return null;
+	} catch {
+		// Retain the existing compressed autosave path if IndexedDB is unavailable.
+		return blobUrlToCompressedDataUrl(url);
+	}
+}
 
 /** Convert a blob URL to a base64 data URL */
 async function blobUrlToDataUrl(blobUrl: string | null): Promise<string | null> {
@@ -212,14 +229,18 @@ async function serializeState(state: MonkrState): Promise<string> {
 	// Convert background image blob URL to data URL so it persists
 	let bgImageDataUrl: string | null = null;
 	if (state.background.type === 'image' && state.background.imageUrl) {
-		bgImageDataUrl = await blobUrlToCompressedDataUrl(state.background.imageUrl);
+		bgImageDataUrl = state.exportConfig.preserveOriginal
+			? await saveOriginalOrCompress('background', state.background.imageUrl)
+			: await blobUrlToCompressedDataUrl(state.background.imageUrl);
 	}
 
 	// Convert device screenshots to compressed data URLs
 	const sceneObjects = await Promise.all(
 		state.sceneObjects.map(async (o) => ({
 			...o,
-			screenshotUrl: await blobUrlToCompressedDataUrl(o.screenshotUrl),
+			screenshotUrl: state.exportConfig.preserveOriginal
+				? await saveOriginalOrCompress(`screenshot:${o.id}`, o.screenshotUrl, o.screenshotFile)
+				: await blobUrlToCompressedDataUrl(o.screenshotUrl),
 			screenshotFile: null,
 			extraScreenshots: [] // extras are too large for localStorage
 		}))
@@ -255,6 +276,10 @@ function loadPersistedState(): MonkrState {
 		const saved = JSON.parse(raw);
 		if (!saved.version) return createDefaultState();
 		const defaults = createDefaultState();
+		for (const object of saved.sceneObjects ?? []) {
+			const match = typeof object.id === 'string' && /^obj-(\d+)$/.exec(object.id);
+			if (match) _nextId = Math.max(_nextId, Number(match[1]) + 1);
+		}
 		// Restore background image from data URL if present
 		const savedBg = saved.background ?? {};
 		let bgImageUrl: string | null = null;
@@ -270,7 +295,7 @@ function loadPersistedState(): MonkrState {
 			} catch {
 				bgType = bgType === 'image' ? 'gradient' : bgType;
 			}
-		} else if (bgType === 'image') {
+		} else if (bgType === 'image' && !saved.exportConfig?.preserveOriginal) {
 			// No data URL available, fall back to gradient
 			bgType = 'gradient';
 		}
@@ -278,7 +303,7 @@ function loadPersistedState(): MonkrState {
 			background: { ...defaults.background, ...savedBg, imageUrl: bgImageUrl, type: bgType },
 			canvasSize: saved.canvasSize ?? defaults.canvasSize,
 			padding: saved.padding ?? defaults.padding,
-			exportConfig: saved.exportConfig ?? defaults.exportConfig,
+			exportConfig: { ...defaults.exportConfig, ...saved.exportConfig },
 			textOverlay: { ...defaults.textOverlay, ...saved.textOverlay },
 			textBlocks: (saved.textBlocks ?? []).map((tb: TextBlock) => ({
 				...createDefaultTextBlock(),
@@ -304,7 +329,7 @@ function loadPersistedState(): MonkrState {
 					screenshotUrl,
 					screenshotFile: null,
 					extraScreenshots: [],
-					id: genId()
+					id: typeof o.id === 'string' ? o.id : genId()
 				};
 			}),
 			selectedObjectId: null,
@@ -344,6 +369,37 @@ function loadPersistedState(): MonkrState {
 class MonkrStore {
 	private _state = $state<MonkrState>(loadPersistedState());
 	private _saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+	constructor() {
+		if (typeof window !== 'undefined' && this._state.exportConfig.preserveOriginal) {
+			void this._restoreOriginalImages();
+		}
+	}
+
+	private async _restoreOriginalImages() {
+		try {
+			if (this._state.background.type === 'image' && !this._state.background.imageUrl) {
+				const blob = await loadOriginalImage('background');
+				if (blob && this._state.background.type === 'image' && !this._state.background.imageUrl) {
+					const url = URL.createObjectURL(blob);
+					this._state.background.imageUrl = url;
+					savedMediaUrls.set('background', url);
+				}
+			}
+			await Promise.all(this._state.sceneObjects.map(async (object) => {
+				if (object.screenshotUrl) return;
+				const blob = await loadOriginalImage(`screenshot:${object.id}`);
+				const current = this._state.sceneObjects.find((item) => item.id === object.id);
+				if (!blob || !current || current.screenshotUrl) return;
+				const url = URL.createObjectURL(blob);
+				current.screenshotUrl = url;
+				current.screenshotFile = new File([blob], 'original-image', { type: blob.type });
+				savedMediaUrls.set(`screenshot:${object.id}`, url);
+			}));
+		} catch (error) {
+			console.error('Could not restore original images:', error);
+		}
+	}
 
 	/** Debounced auto-save to localStorage */
 	private _scheduleSave() {
@@ -772,6 +828,11 @@ class MonkrStore {
 		this._scheduleSave();
 	}
 
+	setPreserveOriginal(preserveOriginal: boolean) {
+		this._state.exportConfig = { ...this._state.exportConfig, preserveOriginal };
+		this._scheduleSave();
+	}
+
 	setCanvasSize(size: Partial<CanvasSize>) {
 		this._state.canvasSize = { ...this._state.canvasSize, ...size };
 		this._scheduleSave();
@@ -1041,7 +1102,7 @@ class MonkrStore {
 				},
 				canvasSize: project.canvasSize ?? createDefaultState().canvasSize,
 				padding: project.padding ?? 60,
-				exportConfig: project.exportConfig ?? createDefaultState().exportConfig,
+				exportConfig: { ...createDefaultState().exportConfig, ...project.exportConfig },
 				textOverlay: { ...createDefaultState().textOverlay, ...project.textOverlay },
 				textBlocks: (project.textBlocks ?? []).map((tb: TextBlock) => ({
 					...createDefaultTextBlock(),

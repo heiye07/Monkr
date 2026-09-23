@@ -59,11 +59,12 @@ export interface TransformConfig {
 }
 
 export type ExportFormat = 'png' | 'jpg';
-export type ExportScale = 1 | 2 | 3;
+export type ExportScale = 1 | 2 | 3 | 4;
 
 export interface ExportConfig {
 	scale: ExportScale;
 	format: ExportFormat;
+	preserveOriginal: boolean;
 }
 
 export interface CanvasPreset {

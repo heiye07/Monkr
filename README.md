@@ -90,6 +90,12 @@ Project settings are kept in a `MonkrPortableData` folder beside the executable.
 folder with the executable to carry your settings to another computer. Online features such
 as Unsplash images, downloaded fonts, and video encoding still require an internet connection.
 
+For maximum still-image quality, choose PNG and 4x in Export. **Preserve original uploads
+between sessions** is enabled by default and stores uploaded image bytes without the older
+autosave resize/JPEG conversion. Images already saved by an older version must be uploaded
+again to recover their original detail. The mockup is still rasterized at the chosen output
+size, so 4x creates more pixels than 1x or 2x; PNG encoding itself is lossless.
+
 ### Scene Presets
 
 One-click layouts that look professional instantly:
