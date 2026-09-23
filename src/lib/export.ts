@@ -208,8 +208,15 @@ export async function exportCanvasSections(
 
 export async function copyToClipboard(
 	element: HTMLElement,
-	scale: ExportScale
+	scale: ExportScale,
+	trimTransparentEdges = false
 ): Promise<void> {
+	if (trimTransparentEdges) {
+		const dataUrl = await trimTransparentPng(await captureToDataUrl(element, 'png', scale));
+		const blob = await (await fetch(dataUrl)).blob();
+		await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+		return;
+	}
 	const restoreImages = await preInlineImages(element);
 	const restoreTransform = stripTransformForCapture(element);
 	await waitForRepaint();

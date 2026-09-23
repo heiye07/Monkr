@@ -52,7 +52,7 @@
 	async function handleCopy() {
 		if (!canvasRef || copied) return;
 		try {
-			await copyToClipboard(canvasRef, store.exportConfig.scale);
+			await copyToClipboard(canvasRef, store.exportConfig.scale, canTrim && trimTransparentEdges);
 			copied = true;
 			setTimeout(() => (copied = false), 2000);
 		} catch (err) {
