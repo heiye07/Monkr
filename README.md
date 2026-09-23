@@ -88,7 +88,7 @@ Run `npm run build:portable` on Windows to create a standalone executable in `re
 The executable includes the app and device assets; no local web server or installation is needed.
 Project settings are kept in a `MonkrPortableData` folder beside the executable. Move that
 folder with the executable to carry your settings to another computer. Online features such
-as Unsplash images and downloaded fonts still require an internet connection.
+as Unsplash images, downloaded fonts, and video encoding still require an internet connection.
 
 ### Scene Presets
 
